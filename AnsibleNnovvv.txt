@@ -1,0 +1,302 @@
+HELLO 
+
+I WILL GONNA TEACH YOU ON HOW TO USE ANSIBLE PLAYBOOK ON CENTOS 9 VIA TELNET 
+
+
+CENTOS 9
+
+USERNAME: centos
+PASSWORD: centos
+
+
+Other Network Automation Tool - Nornir, Netmiko, Napalm, puppet, ansible etc.
+Ansible is an open-source automation tool
+
+Ansible is an open-source automation tool used to perform tasks across a wide range of systems.
+
+Ansible uses a combination of YAML (YAML Ain't Markup Language) and Python. YAML is used for creating playbooks,
+
+
+Ansible utilizes YAML for playbook creation, specifying desired state and tasks, while Python serves as the underlying language for modules and plugins, offering flexibility and extensibility in automating tasks.
+
+
+
+@@@@@@@@@@@@@@@ VM WARE @@@@@@@@@@@@@
+
+
+1. OPEN VMWARE - FILE - SELECT OPEN - FIND THE ISO FILE OF CENTOS 9
+
+2. FOR THE NETWORK ADAPTER YOU CAN USE BRIDGE OR NAT BUT I'LL USED NAT SO THAT I CAN I ACCESS THE INTERNET
+
+3.THEN CLICK POWER ON THIS VIRTUAL MACHINE 
+ 
+4. (Press Windows key + R - Then type ncpa.cpl)  b   
+
+SET YOUR TUNAY NA LAN TO IP ADDRESS OF 10.1.1.8 255.255.255.0/24 NO NEED GATEWAY AND MAKE SURE THAT THE UTP CABLE IS CONNECTED FROM YOUR PC TO FA0/1/0 OF CUCM
+
+5. GO TO CENTOS VMWARE THEN TYPE "ip addr" TO KNOW CHECK IF YOUR CENTOS HAS AN IP ADDRESS
+
+
+@@@@@@@@@@@@ SECURE CRT @@@@@@@@@@@@@
+
+
+*NOTE: YOU CAN USE PUTTY OR SECURE CRT*
+
+5. CLICK QUICK CONNECT SELECT SSH2 THE PUT THE IP ADDRESS OF THE CENTOS 9
+
+username: centos
+password: centos
+
+
+6. OPEN SECURE CRT THEN PASTE THIS BASIC COMMAND TO CUCM: QUICK CONNECT - SERIAL- 9600
+PASTE THIS BASIC COMMAND
+
+enable
+config t
+hostname router
+enable secret pass
+no logging console
+no ip domain-lookup
+username admin privilege 15 secret pass
+line console 0
+ exec-timeout 0 0
+ no login
+line vty 0 14
+ transport input all
+ login local
+Int vlan 1
+ no shut
+ ip add 10.1.1.1 255.255.255.0
+Int Vlan 10
+ no shutdown
+ ip add 10.M.10.4 255.255.255.0
+ description WIRELESS
+Int Fa 0/1/2
+  switchport mode access
+  switchport access vlan 10  
+
+
+
+
+
+7. MAKE SURE THAT YOUR PC/COMPUTER CAN PING 10.1.1.1 THROUGH CMD AND CENTOS
+" ping 10.1.1.1"
+
+
+@@@@@@@@@@@@@@@@ CENTOS @@@@@@@@@@@@@@@@@
+
+
+MAKE SURE THAT YOU ALREADY IN ROOT "sudo su"
+
+8. THEN UPDATE YOUR CENTOS AND INSTALL THE PACKAGES THAT YOU NEED:
+
+dnf update -y
+
+dnf install epel-release -y
+
+dnf install python
+
+dnf install ansible -y
+
+dnf install telnet -y
+
+dnf install nano -y
+
+dnf install python3-netaddr -y
+
+ansible-galaxy collection install cisco.ios
+
+
+9. GO TO THE DIRECTORY OF ANSIBLE " cd /etc/ansible"
+
+10. CHECK THE CONTENT OF DIRECTORY " ls " YOU WILL SEE THE FILES (ansible.cfg, hosts, roles, config.txt, dcon.yml, router1.yml)
+
+11. WE WILL NOW EDIT THE HOST " nano hosts" 
+    
+  GO TO BOTTOM (PINAKA BABA)  THEN ADD THIS:
+  
+   [router]
+   10.1.1.1
+
+THEN SAVE (Press CTRL + X THEN PRESS  Y ,  ENTER) TO SAVE THE FILE
+
+******* DHCP CONFIG *******
+
+12. TYPE " nano dcon.yml" CHANGE THE HOSTS TO "router" DOUBLE CHECK THE USERNAME AND PASSWORD MAKE SURE THAT CREDINTIALS GIVEN WAS THE SAME (CUCM)
+
+(Press CTRL + X THEN PRESS  Y ,  ENTER) TO SAVE THE YML FILE
+
+________________________________________________
+dcon.yml
+
+
+---
+
+- name: DHCP_CONFIG
+  hosts: router
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: TELNET
+      telnet:
+        user: admin
+        password: pass
+        login_prompt: "Username: "
+        prompts:
+          - '[>|#]'
+        command:
+          - terminal length 0
+          - enable
+          - configure terminal
+          - ip dhcp excluded-add 10.1.1.1 10.1.1.150
+          - ip dhcp pool vlanone
+          - network 10.1.1.0 255.255.255.0
+          - default-router 10.1.1.1
+          - domain-name encor.com
+          - dns-server 8.8.8.8
+          - option 150 ip 10.1.1.1
+          - end
+
+__________________________________________________
+
+
+13. WE ARE NOW READY TO RUN THE ANSIBLE PLAYBOOK
+
+TYPE : ansible-playbook dcon.yml  
+ALSO CHECK YOUR IP PHONES IF ITS ALREADY HAS IP ADDRESS
+
+******* IPHONES CONFIG *******
+
+14. NEXT STEP IS PUT NO. ON IPHONES EDIT THE YML FILE "nano router1.yml" CHANGE THE HOSTS, USERNAME, PASSWORD, MAC ADDRESS AND ALL THE UNDERSCORE. 
+MAKE SURE THAT CREDINTIALS GIVEN WAS THE SAME IN CUCM
+
+hosts: router
+user: admin
+password: pass
+
+15. THEN RUN IT VIA PLAYBOOK "ansible-playbook router1.yml" REPEAT IT UNTIL THE IPHONES RESTART
+
+__________________________________________________
+
+router1.yml
+
+
+---
+
+- name: IP PHONE CONFIG
+  hosts: router
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: TELNET
+      telnet:
+        user: admin
+        password: pass
+        login_prompt: "Username: "
+        prompts:
+          - '[>|#]'
+        command:
+          - terminal length 0
+          - enable
+          - configure terminal
+          - no telephony-service
+          - telephony-service
+          - no auto assign
+          - no auto-reg-ephone
+          - max-ephones 12
+          - max-dn 48
+          - ip source-address 10.1.1.1 port 2000
+          - create cnf-files
+          - ephone-dn 1
+          - number __11
+          - ephone-dn 2
+          - number __22
+          - ephone-dn 3
+          - number __33
+          - ephone-dn 4
+          - number __44
+          - ephone-dn 5
+          - number __55
+          - ephone-dn 6
+          - number __66
+          - ephone-dn 7
+          - number __77
+          - ephone-dn 8
+          - number __88
+          - ephone-dn 9
+          - number __68
+          - ephone-dn 10
+          - number __23
+          - Ephone 1
+          - Mac-address ____.____.____
+          - type 8945
+          - button 1:1 2:3 3:2 4:4
+          - restart
+          - Ephone 2
+          - Mac-address ____.____.____
+          - type 8945
+          - button 1:8 2:7 3:3 4:5
+          - restart  
+          - end
+
+
+
+16. AUTO-WIFI
+
+TANGGALIN YUNG ENABLE PASS
+
+telnet ka kay autowifi - 10.m.10.3
+
+conf t
+no username admin password pass
+username admin privilege 15 secret pass
+
+
+
+
+
+---
+
+- name: AUTO-WIFI
+  hosts: router
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: TELNET
+      telnet:
+        user: admin
+        password: pass
+        login_prompt: "Username: "
+        prompts:
+          - '[>|#]'
+        command:
+          - enable
+          - conf t
+          - hostname __AutonoAP
+          - Dot11 ssid __-wifiSSID
+          - authentication open
+          - authentication key-management wpa
+          - wpa-psk ascii C1sc0123
+          - guest-mode
+          - default int Dot11Radio0
+          - int Dot11Radio0
+          - channel 9
+          - no shut
+          - encryption mode ciphers tkip
+          - ssid __-wifiSSID
+          - end
+
+
+ 
+
+
+TURN OFF WIFI
+CMD
+route add 10.m.0.0 mask 255.255.0.0 10.m.10.4
+
+
+
+
+
+
+
